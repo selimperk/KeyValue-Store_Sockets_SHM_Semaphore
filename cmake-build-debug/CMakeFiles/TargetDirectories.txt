@@ -1,0 +1,3 @@
+C:/Users/sense/CLionProjects/PrakBS25/cmake-build-debug/CMakeFiles/PrakBS25.dir
+C:/Users/sense/CLionProjects/PrakBS25/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/Users/sense/CLionProjects/PrakBS25/cmake-build-debug/CMakeFiles/rebuild_cache.dir
