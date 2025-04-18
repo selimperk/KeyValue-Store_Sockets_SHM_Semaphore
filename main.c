@@ -1,50 +1,111 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <netinet/in.h> //struct für sockaddr_in und in_addr
+#include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include "keyValStore.h" // Header-Datei für die Datenhaltung
 
+#define PORT 5678          // TCP-Port, auf dem der Server hört
+#define BUFFER_SIZE 256    // Maximale Größe des Buffers für Nachrichten
 
-int main(void) {
+// Die Funktion, die den Server startet
+void start_server() {
+    int sockfd, newsockfd;
+    socklen_t clilen;
+    struct sockaddr_in serv_addr, cli_addr;
+    char buffer[BUFFER_SIZE];  // Puffer zum Speichern der eingehenden Daten
+    int n;
 
-    //socket erstellen
-    int sock;
-    sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
-        perror("creating stream socket");
-        exit(2);
+    // Erstelle einen TCP-Socket
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        perror("ERROR beim Öffnen des Sockets");
+        exit(1);
     }
 
-    //struktur von sock_addr füllen
-    struct sockaddr_in server;
-    server.sin_family = AF_INET;
-    server.sin_addr.s_addr = INADDR_ANY;
-    server.sin_port = htons(5678);
-    //socket binden
-    bind(sock, (struct sockaddr *)&server, sizeof(server));
+    // Setze die Serveradresse
+    bzero((char *) &serv_addr, sizeof(serv_addr));  // Setze die Struktur auf Null
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = INADDR_ANY;  // Der Server hört auf allen verfügbaren Interfaces
+    serv_addr.sin_port = htons(PORT);  // Port 5678
 
-    //auf verbindung hören n=5 ist warteschlange
-    int ret = listen(sock, 5);
-    //verbindung akzeptieren
-    int connection_fd = accept(sock, (struct sockaddr *)NULL, NULL); //warum NULL?
+    // Binde den Socket an die Adresse
+    if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
+        perror("ERROR beim Binden des Sockets");
+        exit(1);
+    }
 
-    //datei empfangen
-    int number_bytes = recv(connection_fd, (void *)&number_bytes, sizeof(number_bytes), 0);
-    //datei senden
-    int number_bytes_send=send(connection_fd, (void *)&number_bytes, sizeof(number_bytes), 0);
+    // Warten auf eingehende Verbindungen
+    listen(sockfd, 5); //warum n=5?..........................................
+    clilen = sizeof(cli_addr); //warum clilen? was ist das?....................................
 
+    // Akzeptiere eine eingehende Verbindung
+    newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
+    if (newsockfd < 0) {
+        perror("ERROR beim Akzeptieren");
+        exit(1);
+    }
 
-    //SHM einrichten --> Multiclientfähig werden --> gegenseitig daten austauschen
-    int id,result,*shar_mem; //so richtig mit pointer?
-    //shmget neues segment anlegen
-    id=shmget(IPC_PRIVATE, sizeof(int), IPC_CREAT | 0600);
-    //shmat Addressraum anhängen stat NULL 0? evtl casten?
-    shar_mem =(int *)shmat(id, 0, 0);
-    //shmdt Addressraum aushängen
-    result=shmdt(shar_mem);
-    //shmctl steuerung
-    result=shmctl(id, IPC_RMID, NULL); //hier nur vorübergehend..RMID ist cmd
+    // Kommunikationsschleife
+    while (1) {
+        bzero(buffer, BUFFER_SIZE);  // Leere den Buffer
+        n = read(newsockfd, buffer, BUFFER_SIZE - 1);  // Lese Daten vom Client --> warum buffersize -1?............
+        if (n < 0) {
+            perror("ERROR beim Lesen vom Socket");
+            exit(1);
+        }
+
+        // Parsing der Eingabe (Befehl, Schlüssel, Wert) ---> warum muss geparsed werden?....................
+        char command[10], key[50], value[100];
+        int parsed = sscanf(buffer, "%s %s %s", command, key, value);  // Zerlege die Eingabe in Befehl, Schlüssel, Wert
+
+        // Verarbeitung der Befehle
+        if (strcmp(command, "QUIT") == 0) {
+            write(newsockfd, "Bis zum nächsten Mal!\n", 8);  // Sende String und beende die Verbindung
+            break;
+        }
+
+        // PUT Befehl
+        if (strcmp(command, "PUT") == 0 && parsed == 3) { //warum parsed?..................................
+            if (put(key, value) == 0) {  // Versuche, den Wert zu setzen
+                sprintf(buffer, "PUT:%s:%s", key, value);  // Formatierte Antwort --> wozu?...................................
+                write(newsockfd, buffer, strlen(buffer));  // Sende Antwort an den Client --> warum strlen von buffer?..........................
+            } else {
+                write(newsockfd, "Error: Store ist voll!\n", 21);  // warum n=21?...........................................................
+            }
+        }
+        // GET Befehl
+        else if (strcmp(command, "GET") == 0 && parsed == 2) { //warum parsed?..................................
+            if (get(key, value) == 0) {  // Versuche, den Wert zu holen
+                sprintf(buffer, "GET:%s:%s", key, value);  // Formatierte Antwort
+                write(newsockfd, buffer, strlen(buffer));  // Sende Antwort an den Client
+            } else {
+                write(newsockfd, "GET:key_nonexistent\n", 20);  // Fehler, wenn der Schlüssel nicht existiert
+            }
+        }
+        // DEL Befehl
+        else if (strcmp(command, "DEL") == 0 && parsed == 2) {
+            if (del(key) == 0) {  // Versuche, den Wert zu löschen
+                sprintf(buffer, "DEL:%s:key_deleted", key);  // Formatierte Antwort
+                write(newsockfd, buffer, strlen(buffer));  // Sende Antwort an den Client
+            } else {
+                write(newsockfd, "DEL:key_nonexistent\n", 20);  // Fehler, wenn der Schlüssel nicht existiert
+            }
+        }
+        // Ungültiger Befehl
+        else {
+            write(newsockfd, "Error: Ungültiger Befehl\n", 23);
+        }
+    }
+
+    close(newsockfd);  // Schließe die Client-Verbindung
+    close(sockfd);     // Schließe den Server-Socket
+}
+
+int main() {
+    start_server();  // Starte den Server
     return 0;
 }
