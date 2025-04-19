@@ -28,7 +28,7 @@ void start_server() {
     }
 
     // Setze die Serveradresse
-    bzero((char *) &serv_addr, sizeof(serv_addr));  // Setze die Struktur auf Null
+    bzero((char *) &serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;  // Der Server hört auf allen verfügbaren Interfaces
     serv_addr.sin_port = htons(PORT);  // Port 5678
@@ -73,6 +73,16 @@ void start_server() {
 
         // PUT Befehl (ohne Parsing des Werts)
         if (strcmp(command, "PUT") == 0) {
+            char oldValue[100];// Versuche, den Wert zu setzen
+
+            //alten wert speichern
+            for (int i=0; i< currentIndex; i++) {
+                if (strcmp(store[i].key,key)==0) {
+                    strcpy(oldValue, store[i].value);
+                    break;
+                }
+            }
+
             int result = put(key,value);
 
             if (result == 0) {
@@ -81,10 +91,12 @@ void start_server() {
                 write(newsockfd, buffer, strlen(buffer));
             } else {
                 // Wenn überschrieben, gib den alten Wert aus
-                sprintf(buffer, "PUT:%s:%s\n", key, value);
+                sprintf(buffer, "PUT:%s:%s\n", key, oldValue);
                 write(newsockfd, buffer, strlen(buffer));
             }
         }
+
+
 
         // GET Befehl
         else if (strcmp(command, "GET") == 0) {
