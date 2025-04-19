@@ -7,8 +7,11 @@ typedef struct {
     char value[100];
 } KeyValue;
 
-KeyValue store[MAX_ENTRIES];
-int currentIndex;
+extern KeyValue *store;
+extern int currentIndex;
+
+void init_shared_memory();  // Deklaration von init_shared_memory
+void cleanup_shared_memory();  // Deklaration von cleanup_shared_memory
 
 int put(char* key, char* value);
 int get(char* key, char* res);

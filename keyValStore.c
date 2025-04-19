@@ -1,6 +1,56 @@
 #include "keyValStore.h"
 #include <stdio.h>
 #include <string.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+// Shared Memory ID und Pointer
+int shm_id;
+KeyValue *store;  // Zeiger auf den Shared Memory Bereich
+
+int currentIndex = 0;
+
+// Initialisierung von Shared Memory
+void init_shared_memory() {
+    // Hole die Shared Memory ID, wenn sie schon existiert, andernfalls erstelle sie
+    shm_id = shmget(IPC_PRIVATE, MAX_ENTRIES * sizeof(KeyValue), IPC_CREAT | 0666);
+    if (shm_id < 0) {
+        perror("ERROR beim Erstellen des Shared Memorys");
+        exit(1);
+    }
+
+    // Binde den Shared Memory Bereich an den Adressraum dieses Prozesses
+    store = (KeyValue *)shmat(shm_id, NULL, 0);
+    if (store == (KeyValue *)-1) {
+        perror("ERROR beim Binden des Shared Memorys");
+        exit(1);
+    }
+
+    // Optional: initialisiere den Speicher
+    for (int i = 0; i < MAX_ENTRIES; i++) {
+        store[i].key[0] = '\0';  // Leere Schlüssel
+        store[i].value[0] = '\0';  // Leere Werte
+    }
+}
+
+// Funktion zum Entfernen des Shared Memorys
+void cleanup_shared_memory() {
+    // Trenne den Shared Memory Bereich vom Adressraum
+    if (shmdt(store) == -1) {
+        perror("ERROR beim Trennen des Shared Memorys");
+    }
+
+    // Lösche den Shared Memory Bereich
+    if (shmctl(shm_id, IPC_RMID, NULL) == -1) {
+        perror("ERROR beim Löschen des Shared Memorys");
+    }
+}
+
+
+
+
 
 // PUT: Fügt ein Key-Value-Paar hinzu oder überschreibt den Wert eines bestehenden Keys
 int put(char* key, char* value) {
