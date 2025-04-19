@@ -6,10 +6,11 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include "keyValStore.h" // Header-Datei für die Datenhaltung
+#include "keyValStore.h"  // Header-Datei für die Datenhaltung
 
 #define PORT 5678          // TCP-Port, auf dem der Server hört
 #define BUFFER_SIZE 256    // Maximale Größe des Buffers für Nachrichten
+#define MAX_ENTRIES 10
 
 // Die Funktion, die den Server startet
 void start_server() {
@@ -39,8 +40,8 @@ void start_server() {
     }
 
     // Warten auf eingehende Verbindungen
-    listen(sockfd, 5); //warum n=5?..........................................
-    clilen = sizeof(cli_addr); //warum clilen? was ist das?....................................
+    listen(sockfd, 5);
+    clilen = sizeof(cli_addr);
 
     // Akzeptiere eine eingehende Verbindung
     newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
@@ -52,52 +53,76 @@ void start_server() {
     // Kommunikationsschleife
     while (1) {
         bzero(buffer, BUFFER_SIZE);  // Leere den Buffer
-        n = read(newsockfd, buffer, BUFFER_SIZE - 1);  // Lese Daten vom Client --> warum buffersize -1?............
+        n = read(newsockfd, buffer, BUFFER_SIZE - 1);  // Lese Daten vom Client
         if (n < 0) {
             perror("ERROR beim Lesen vom Socket");
             exit(1);
         }
 
-        // Parsing der Eingabe (Befehl, Schlüssel, Wert) ---> warum muss geparsed werden?....................
-        char command[10], key[50], value[100];
-        int parsed = sscanf(buffer, "%s %s %s", command, key, value);  // Zerlege die Eingabe in Befehl, Schlüssel, Wert
+        // Extrahiere den Befehl, Schlüssel und den Wert
+        char command[10], key[50], value[200];
+
+        // Extrahiere den Befehl und den Schlüssel (bzw. Rest des Textes als Wert)
+        sscanf(buffer, "%s %s %[^\n]", command, key, value);  // Format: Befehl Schlüssel Wert
 
         // Verarbeitung der Befehle
         if (strcmp(command, "QUIT") == 0) {
-            write(newsockfd, "Bis zum nächsten Mal!\n", 8);  // Sende String und beende die Verbindung
+            write(newsockfd, buffer, strlen(buffer));  // Sende String und beende die Verbindung
             break;
         }
 
-        // PUT Befehl
-        if (strcmp(command, "PUT") == 0 && parsed == 3) { //warum parsed?..................................
-            if (put(key, value) == 0) {  // Versuche, den Wert zu setzen
-                sprintf(buffer, "PUT:%s:%s", key, value);  // Formatierte Antwort --> wozu?...................................
-                write(newsockfd, buffer, strlen(buffer));  // Sende Antwort an den Client --> warum strlen von buffer?..........................
+        // PUT Befehl (ohne Parsing des Werts)
+        if (strcmp(command, "PUT") == 0) {
+            char oldValue[100];// Versuche, den Wert zu setzen
+
+            //alten wert speichern
+            for (int i=0; i< currentIndex; i++) {
+                if (strcmp(store[i].key,key)==0) {
+                    strcpy(oldValue, store[i].value);
+                    break;
+                }
+            }
+
+            int result = put(key,value);
+
+            if (result == 0) {
+                // Kein alter Wert, einfach den neuen Wert zurückgeben
+                sprintf(buffer, "PUT:%s:%s\n", key, value);
+                write(newsockfd, buffer, strlen(buffer));
             } else {
-                write(newsockfd, "Error: Store ist voll!\n", 21);  // warum n=21?...........................................................
+                // Wenn überschrieben, gib den alten Wert aus
+                sprintf(buffer, "PUT:%s:%s\n", key, oldValue);
+                write(newsockfd, buffer, strlen(buffer));
             }
         }
+
+
+
         // GET Befehl
-        else if (strcmp(command, "GET") == 0 && parsed == 2) { //warum parsed?..................................
+        else if (strcmp(command, "GET") == 0) {
             if (get(key, value) == 0) {  // Versuche, den Wert zu holen
-                sprintf(buffer, "GET:%s:%s", key, value);  // Formatierte Antwort
+                sprintf(buffer, "GET:%s:%s\n", key, value);  // Formatierte Antwort
                 write(newsockfd, buffer, strlen(buffer));  // Sende Antwort an den Client
             } else {
-                write(newsockfd, "GET:key_nonexistent\n", 20);  // Fehler, wenn der Schlüssel nicht existiert
+                sprintf(buffer, "GET:%s:key_nonexistent\n", key);  // Fehlermeldung mit Key
+                write(newsockfd, buffer, strlen(buffer));  // Fehlerantwort
             }
         }
+
         // DEL Befehl
-        else if (strcmp(command, "DEL") == 0 && parsed == 2) {
+        else if (strcmp(command, "DEL") == 0) {
             if (del(key) == 0) {  // Versuche, den Wert zu löschen
-                sprintf(buffer, "DEL:%s:key_deleted", key);  // Formatierte Antwort
+                sprintf(buffer, "DEL:%s:key_deleted\n", key);  // Formatierte Antwort
                 write(newsockfd, buffer, strlen(buffer));  // Sende Antwort an den Client
             } else {
-                write(newsockfd, "DEL:key_nonexistent\n", 20);  // Fehler, wenn der Schlüssel nicht existiert
+                sprintf(buffer, "DEL:%s:key_nonexistent\n", key);  // Fehler, wenn der Key nicht existiert
+                write(newsockfd, buffer, strlen(buffer));  // Fehlerantwort
             }
         }
+
         // Ungültiger Befehl
         else {
-            write(newsockfd, "Error: Ungültiger Befehl\n", 23);
+            write(newsockfd, "Error: Ungültiger Befehl\n", strlen(buffer));
         }
     }
 

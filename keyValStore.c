@@ -2,18 +2,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#define MAX_ENTRIES 10  // Begrenzte Anzahl von Key-Value-Paaren --> muss das sein?............
-
-// Struktur für Key-Value-Paare
-typedef struct {
-    char key[50];
-    char value[100];
-} KeyValue;
-
-// Array für den Key-Value-Store
-KeyValue store[MAX_ENTRIES];
-int currentIndex = 0;  // Zeiger auf die nächste freie Stelle im Store
-
 // PUT: Fügt ein Key-Value-Paar hinzu oder überschreibt den Wert eines bestehenden Keys
 int put(char* key, char* value) {
     // Überprüfen, ob der Schlüssel bereits existiert
