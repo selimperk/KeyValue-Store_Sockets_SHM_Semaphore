@@ -21,12 +21,9 @@ void handle_client(int newsockfd) {
     int n;
 
     while (1) {
-        bzero(buffer, BUFFER_SIZE);  // buffer leeren
+        //bzero(buffer, BUFFER_SIZE);  // buffer leeren
+
         n = read(newsockfd, buffer, BUFFER_SIZE - 1);  // daten vom client lesen
-        if (n < 0) {
-            perror("ERROR beim Lesen vom Socket");
-            exit(1);
-        }
 
         // Extrahiere den Befehl, Schlüssel und den Wert
         char command[10], key[50], value[200];
@@ -35,6 +32,7 @@ void handle_client(int newsockfd) {
 
         // Verarbeitung der Befehle
         if (strcmp(command, "QUIT") == 0) {
+            printf("Der Kindprozess mit der ID %d hat den Server verlassen\n", getpid());
             write(newsockfd, buffer, strlen(buffer));  // Sende String und beende die Verbindung
             break;
         }
@@ -107,46 +105,40 @@ void start_server() {
 
     // Erstelle einen TCP-Socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-        perror("ERROR beim Öffnen des Sockets");
-        exit(1);
-    }
 
     // Setze die Serveradresse
-    bzero((char *) &serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;  // Der Server hört auf allen verfügbaren Interfaces
     serv_addr.sin_port = htons(PORT);  // Port 5678
 
     // Binde den Socket an die Adresse
-    if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
-        perror("ERROR beim Binden des Sockets");
-        exit(1);
-    }
+    bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
+
+
 
     // Warten auf eingehende Verbindungen
     listen(sockfd, 5);
     clilen = sizeof(cli_addr);
 
+    // Ausgabe der Prozess-IDs
+    printf("Server gestartet.\n");
+    printf("Die Prozess ID des Vaters (Elternprozess) ist: %d\n", getppid());
+
+
+
     // Akzeptiere eine eingehende Verbindung
-
-
     // Kommunikationsschleife
     while (1) {
         newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
-        if (newsockfd < 0) {
-            perror("ERROR beim Akzeptieren");
-            exit(1);
-        }
 
+        //Kindprozess erzeugen
         pid_t pid = fork();
-        if (pid < 0) {
-            perror("ERROR beim Forken");
-            exit(1);
-        }
 
         if (pid == 0) {
             close(sockfd); //kindprozess braucht haupptsocket nicht mehr
+            printf("Neuer Client verbunden!\n");
+            printf("Die Prozess ID des Vaters (Elternprozess) ist: %d\n", getppid());
+            printf("Die Prozess ID des aktuellen Client-Handlers (Kindprozess) ist: %d\n", getpid());
             handle_client(newsockfd); //kommunikation mit put,get,del befehlen
             exit(0);
         } else {
@@ -156,6 +148,9 @@ void start_server() {
 
     close(sockfd);
 }
+
+
+
 
 int main() {
     init_shared_memory();

@@ -6,6 +6,4 @@ set(CMAKE_C_STANDARD 11)
 add_executable(PrakBS25 main.c
         keyValStore.c
         keyValStore.h
-        main.h
-        sub.c
-        sub.h)
+)

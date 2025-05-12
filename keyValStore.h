@@ -9,6 +9,7 @@ typedef struct {
 
 extern KeyValue *store;
 extern int currentIndex;
+extern int shm_id;
 
 void init_shared_memory();  // Deklaration von init_shared_memory
 void cleanup_shared_memory();  // Deklaration von cleanup_shared_memory

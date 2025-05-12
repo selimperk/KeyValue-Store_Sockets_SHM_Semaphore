@@ -1,15 +1,4 @@
 /usr/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - Unix Makefiles" /tmp/PrakBS25
 -- Configuring done
-CMake Error at CMakeLists.txt:6 (add_executable):
-  Cannot find source file:
-
-    main.h
-
-  Tried extensions .c .C .c++ .cc .cpp .cxx .m .M .mm .h .hh .h++ .hm .hpp
-  .hxx .in .txx
-
-
-CMake Error: CMake can not determine linker language for target: PrakBS25
-CMake Error: Cannot determine link language for target "PrakBS25".
 -- Generating done
 -- Build files have been written to: /tmp/PrakBS25/cmake-build-docker
