@@ -4,6 +4,6 @@ project(PrakBS25 C)
 set(CMAKE_C_STANDARD 11)
 
 add_executable(PrakBS25 main.c
-        keyValStore.c
         keyValStore.h
+        keyValStore.c
 )
